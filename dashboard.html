@@ -1,0 +1,1230 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vedveda Sales &amp; Analytics Dashboard</title>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50:  '#f0f9ff',
+              100: '#e0f2fe',
+              500: '#0ea5e9',
+              600: '#0284c7',
+              700: '#0369a1',
+              900: '#0c4a6e',
+            },
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+          },
+        }
+      }
+    }
+  </script>
+
+  <!-- Google Font: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+
+  <style>
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #f1f5f9; }
+    ::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 3px; }
+
+    .nav-link.active {
+      background: linear-gradient(135deg, #0ea5e9 0%, #0369a1 100%);
+      color: white;
+    }
+
+    .kpi-gradient-blue    { background: linear-gradient(135deg, #0ea5e9, #0369a1); }
+    .kpi-gradient-green   { background: linear-gradient(135deg, #10b981, #059669); }
+    .kpi-gradient-orange  { background: linear-gradient(135deg, #f59e0b, #d97706); }
+    .kpi-gradient-purple  { background: linear-gradient(135deg, #8b5cf6, #6d28d9); }
+
+    #toast {
+      transition: opacity 0.3s ease, transform 0.3s ease;
+    }
+    #toast.hidden { opacity: 0; transform: translateY(20px); pointer-events: none; }
+
+    .spinner {
+      width: 20px; height: 20px;
+      border: 3px solid rgba(255,255,255,0.3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    tbody tr:hover { background: #f0f9ff; }
+
+    .badge-paid    { background: #d1fae5; color: #065f46; }
+    .badge-pending { background: #fef3c7; color: #92400e; }
+
+    .modal-overlay {
+      backdrop-filter: blur(4px);
+      background: rgba(15, 23, 42, 0.6);
+    }
+
+    .drag-region {
+      -webkit-app-region: drag;
+      app-region: drag;
+    }
+    .drag-region button, .drag-region input, .drag-region select {
+      -webkit-app-region: no-drag;
+      app-region: no-drag;
+    }
+
+    body.desktop-mode aside::-webkit-scrollbar { display: none; }
+    #win-controls { display: none; }
+    body.desktop-mode #win-controls { display: flex; }
+  </style>
+</head>
+
+<script>
+  if (window.pywebview !== undefined || navigator.userAgent.includes('pywebview')) {
+    document.documentElement.classList.add('desktop');
+    document.addEventListener('DOMContentLoaded', () => {
+      document.body.classList.add('desktop-mode');
+    });
+  }
+</script>
+
+<body class="bg-slate-50 font-sans text-slate-800 min-h-screen flex">
+
+<!-- Mobile Sidebar Backdrop -->
+<div id="sidebar-backdrop" onclick="toggleMobileSidebar()" 
+     class="fixed inset-0 bg-slate-900/50 z-20 md:hidden hidden transition-opacity"></div>
+
+<!-- SIDEBAR -->
+<aside id="sidebar"
+       class="fixed top-0 left-0 h-screen w-64 bg-slate-900 text-slate-100
+              flex flex-col z-30 shadow-2xl transition-transform duration-300
+              -translate-x-full md:translate-x-0">
+
+  <div class="flex items-center justify-between px-6 py-5 border-b border-slate-700">
+    <div class="flex items-center gap-3">
+      <div class="w-9 h-9 rounded-lg bg-brand-500 flex items-center justify-center flex-shrink-0">
+        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0
+                   0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0
+                   0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+        </svg>
+      </div>
+      <div>
+        <p class="font-bold text-sm leading-tight">Vedveda</p>
+        <p class="text-xs text-slate-400">Sales Dashboard</p>
+      </div>
+    </div>
+    <button onclick="toggleMobileSidebar()" class="md:hidden text-slate-400 hover:text-white">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+      </svg>
+    </button>
+  </div>
+
+  <nav class="flex-1 px-3 py-4 overflow-y-auto space-y-1">
+    <p class="px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Overview</p>
+    <a href="#" onclick="switchView('all'); return false;"
+       id="nav-all"
+       class="nav-link active flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200">
+      <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7
+                 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002
+                 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+      </svg>
+      All Team Overview
+    </a>
+
+    <div class="flex items-center justify-between px-3 mt-4 mb-2">
+      <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Members</p>
+      <button onclick="openMemberModal()" class="text-xs text-brand-400 hover:text-brand-300 font-semibold flex items-center gap-1">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+        </svg> Add Member
+      </button>
+    </div>
+    <div id="member-nav-links"></div>
+  </nav>
+
+  <div class="px-5 py-4 border-t border-slate-700 text-xs text-slate-500">
+    &copy; 2026 Vedveda &middot; All rights reserved
+  </div>
+</aside>
+
+<!-- MAIN CONTENT -->
+<main class="w-full md:ml-64 flex-1 flex flex-col min-h-screen">
+
+  <header class="sticky top-0 z-20 bg-white border-b border-slate-200
+                 flex items-center justify-between px-4 sm:px-8 py-3.5 shadow-sm drag-region">
+    <div class="flex items-center gap-3">
+      <button onclick="toggleMobileSidebar()" class="md:hidden text-slate-600 hover:text-slate-900 focus:outline-none">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+        </svg>
+      </button>
+      <div>
+        <h1 id="page-title" class="text-base sm:text-lg font-bold text-slate-900 truncate max-w-[180px] sm:max-w-none">All Team Overview</h1>
+        <p id="page-subtitle" class="text-xs text-slate-500 mt-0.5">Sales &amp; Analytics &middot; September 2026</p>
+      </div>
+    </div>
+    
+    <div class="flex items-center gap-2 sm:gap-3">
+      <div class="relative hidden sm:block">
+        <input id="global-search" type="text" placeholder="Search transactions…"
+               class="pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-lg
+                      focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none w-52 transition" />
+        <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"
+             fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0"/>
+        </svg>
+      </div>
+
+      <button onclick="syncExcel()"
+              class="flex items-center gap-2 px-3 sm:px-4 py-2 bg-emerald-600 text-white
+                     text-xs sm:text-sm font-semibold rounded-lg hover:bg-emerald-700 transition shadow-sm"
+              title="Reload data from VEDVEDA.xlsx">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+        </svg>
+        <span class="hidden xs:inline">Sync</span> Excel
+      </button>
+
+      <button onclick="openAddModal()"
+              class="flex items-center gap-2 px-3 sm:px-4 py-2 bg-brand-600 text-white
+                     text-xs sm:text-sm font-semibold rounded-lg hover:bg-brand-700 transition shadow-sm">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+        </svg>
+        <span class="hidden xs:inline">Add</span> Transaction
+      </button>
+
+      <div id="win-controls" class="items-center gap-1 ml-2 border-l border-slate-200 pl-3">
+        <button onclick="winMinimize()" title="Minimize"
+                class="w-7 h-7 rounded-lg flex items-center justify-center
+                       text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"/>
+          </svg>
+        </button>
+        <button onclick="winFullscreen()" title="Toggle fullscreen"
+                class="w-7 h-7 rounded-lg flex items-center justify-center
+                       text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M4 8V4m0 0h4M4 4l5 5m11-5h-4m4 0v4m0-4l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <div class="flex-1 px-4 sm:px-8 py-6 space-y-8">
+
+    <section id="kpi-section">
+      <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
+        <div class="kpi-gradient-blue rounded-2xl p-5 text-white shadow-lg">
+          <div class="flex items-start justify-between">
+            <div>
+              <p class="text-xs font-medium text-blue-100 uppercase tracking-wider">Total PV</p>
+              <p id="kpi-total-pv" class="text-3xl font-extrabold mt-1">—</p>
+            </div>
+            <div class="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
+              </svg>
+            </div>
+          </div>
+          <p class="text-xs text-blue-200 mt-3">Accumulated Point Value</p>
+        </div>
+
+        <div class="kpi-gradient-green rounded-2xl p-5 text-white shadow-lg">
+          <div class="flex items-start justify-between">
+            <div>
+              <p class="text-xs font-medium text-green-100 uppercase tracking-wider">Revenue Collected</p>
+              <p id="kpi-revenue" class="text-3xl font-extrabold mt-1">—</p>
+            </div>
+            <div class="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3
+                         2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11
+                         0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+            </div>
+          </div>
+          <p class="text-xs text-green-200 mt-3">Paid transactions total</p>
+        </div>
+
+        <div class="kpi-gradient-orange rounded-2xl p-5 text-white shadow-lg">
+          <div class="flex items-start justify-between">
+            <div>
+              <p class="text-xs font-medium text-amber-100 uppercase tracking-wider">Pending Dues</p>
+              <p id="kpi-pending" class="text-3xl font-extrabold mt-1">—</p>
+            </div>
+            <div class="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667
+                         1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34
+                         16c-.77 1.333.192 3 1.732 3z"/>
+              </svg>
+            </div>
+          </div>
+          <p class="text-xs text-amber-200 mt-3">Unpaid transactions total</p>
+        </div>
+
+        <div class="kpi-gradient-purple rounded-2xl p-5 text-white shadow-lg">
+          <div class="flex items-start justify-between">
+            <div>
+              <p class="text-xs font-medium text-purple-100 uppercase tracking-wider">Team Members</p>
+              <p id="kpi-members" class="text-3xl font-extrabold mt-1">—</p>
+            </div>
+            <div class="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0
+                         0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/>
+              </svg>
+            </div>
+          </div>
+          <p class="text-xs text-purple-200 mt-3">Active sales team</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+      <div class="xl:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h2 class="font-bold text-slate-900">PV Contribution per Member</h2>
+            <p class="text-xs text-slate-500 mt-0.5">Accumulated Point Value breakdown</p>
+          </div>
+          <span class="px-3 py-1 bg-brand-50 text-brand-700 text-xs font-semibold rounded-full">Bar Chart</span>
+        </div>
+        <canvas id="pvBarChart" height="220"></canvas>
+      </div>
+
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 flex flex-col">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h2 class="font-bold text-slate-900">Revenue vs. Dues</h2>
+            <p class="text-xs text-slate-500 mt-0.5">Paid vs Pending amounts</p>
+          </div>
+          <span class="px-3 py-1 bg-emerald-50 text-emerald-700 text-xs font-semibold rounded-full">Doughnut</span>
+        </div>
+        <div class="flex-1 flex items-center justify-center">
+          <canvas id="paidPendingChart" height="220"></canvas>
+        </div>
+        <div id="donut-legend" class="mt-4 flex justify-center gap-6 text-xs"></div>
+      </div>
+    </section>
+
+    <section id="all-team-section">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="font-bold text-slate-900 text-lg">Team Member Profiles</h2>
+      </div>
+      <div id="member-cards-grid" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5"></div>
+    </section>
+
+    <section id="member-detail-section" class="hidden space-y-6">
+      <div id="member-profile-header" class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 flex flex-col sm:flex-row items-center gap-6"></div>
+      <div id="member-stats-row" class="grid grid-cols-2 xl:grid-cols-4 gap-4"></div>
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+        <h3 class="font-bold text-slate-900 mb-4">Product Breakdown</h3>
+        <div id="product-breakdown-list" class="space-y-3"></div>
+      </div>
+    </section>
+
+    <section class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-6 py-4 border-b border-slate-100">
+        <div>
+          <h2 id="table-title" class="font-bold text-slate-900">All Transactions</h2>
+          <p id="table-subtitle" class="text-xs text-slate-500 mt-0.5">Click a row to edit or delete</p>
+        </div>
+        <div class="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-start">
+          <select id="status-filter" onchange="filterTable()"
+                  class="text-sm border border-slate-200 rounded-lg px-3 py-2
+                         focus:ring-2 focus:ring-brand-500 outline-none">
+            <option value="all">All Statuses</option>
+            <option value="Paid">Paid</option>
+            <option value="Pending">Pending</option>
+          </select>
+          <span id="row-count" class="text-sm text-slate-500 font-medium hidden sm:inline"></span>
+        </div>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="bg-slate-50 text-slate-600 text-xs uppercase tracking-wider border-b border-slate-100">
+              <th class="text-left px-5 py-3 font-semibold">Date</th>
+              <th class="text-left px-5 py-3 font-semibold">Member</th>
+              <th class="text-left px-5 py-3 font-semibold">Product</th>
+              <th class="text-right px-5 py-3 font-semibold">Qty</th>
+              <th class="text-right px-5 py-3 font-semibold">PV</th>
+              <th class="text-right px-5 py-3 font-semibold">Amount (₹)</th>
+              <th class="text-center px-5 py-3 font-semibold">Status</th>
+              <th class="text-right px-5 py-3 font-semibold">Penal PV</th>
+              <th class="text-right px-5 py-3 font-semibold">Penal Amt (₹)</th>
+              <th class="text-center px-5 py-3 font-semibold">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="transactions-tbody" class="divide-y divide-slate-50">
+            <tr><td colspan="10" class="text-center py-12 text-slate-400">
+              <div class="spinner mx-auto mb-3" style="border-color:#cbd5e1;border-top-color:#0ea5e9;width:28px;height:28px;border-width:4px;"></div>
+              Loading transactions…
+            </td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="flex flex-col sm:flex-row items-center justify-between gap-3 px-6 py-3 border-t border-slate-100 bg-slate-50 text-sm text-slate-500">
+        <span id="pagination-info"></span>
+        <div class="flex gap-2">
+          <button id="prev-btn" onclick="changePage(-1)"
+                  class="px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-white
+                         disabled:opacity-40 disabled:cursor-not-allowed transition">&larr; Prev</button>
+          <button id="next-btn" onclick="changePage(1)"
+                  class="px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-white
+                         disabled:opacity-40 disabled:cursor-not-allowed transition">Next &rarr;</button>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</main>
+
+<!-- ADD MEMBER MODAL -->
+<div id="member-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 modal-overlay">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-auto overflow-hidden">
+    <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+      <h2 class="font-bold text-slate-900 text-lg">Add New Team Member</h2>
+      <button onclick="closeMemberModal()" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 transition text-slate-500">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+
+    <form id="member-form" onsubmit="submitMember(event)" class="px-6 py-5 space-y-4">
+      <div>
+        <label class="block text-xs font-semibold text-slate-600 mb-1">Full Name *</label>
+        <input type="text" id="form-member-name" required placeholder="e.g. Rahul Sharma"
+               class="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm
+                      focus:ring-2 focus:ring-brand-500 outline-none" />
+      </div>
+
+      <div>
+        <label class="block text-xs font-semibold text-slate-600 mb-1">Role / Designation</label>
+        <input type="text" id="form-member-role" value="Team Member" placeholder="e.g. Sales Executive"
+               class="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm
+                      focus:ring-2 focus:ring-brand-500 outline-none" />
+      </div>
+
+      <div class="flex gap-3 pt-2">
+        <button type="button" onclick="closeMemberModal()"
+                class="flex-1 px-4 py-2.5 border border-slate-200 rounded-lg text-sm
+                       font-semibold text-slate-700 hover:bg-slate-50 transition">
+          Cancel
+        </button>
+        <button type="submit" id="member-submit-btn"
+                class="flex-1 flex items-center justify-center gap-2 px-4 py-2.5
+                       bg-brand-600 text-white rounded-lg text-sm font-semibold
+                       hover:bg-brand-700 transition">
+          Add Member
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ADD / EDIT TRANSACTION MODAL -->
+<div id="txn-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 modal-overlay">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-auto overflow-hidden">
+    <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+      <h2 id="modal-title" class="font-bold text-slate-900 text-lg">Add Transaction</h2>
+      <button onclick="closeModal()" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 transition text-slate-500">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+
+    <form id="txn-form" onsubmit="submitTransaction(event)" class="px-6 py-5 space-y-4">
+      <input type="hidden" id="txn-id" value="" />
+
+      <div class="grid grid-cols-2 gap-4">
+        <div class="col-span-2">
+          <label class="block text-xs font-semibold text-slate-600 mb-1">Team Member *</label>
+          <select id="form-member" required
+                  class="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm
+                         focus:ring-2 focus:ring-brand-500 outline-none">
+            <option value="">Select member…</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">Date</label>
+          <input type="date" id="form-date"
+                 class="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm
+                        focus:ring-2 focus:ring-brand-500 outline-none" />
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">Payment Status *</label>
+          <select id="form-status" required
+                  class="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm
+                         focus:ring-2 focus:ring-brand-500 outline-none">
+            <option value="Paid">Paid</option>
+            <option value="Pending">Pending</option>
+          </select>
+        </div>
+
+        <div class="col-span-2">
+          <label class="block text-xs font-semibold text-slate-600 mb-1">Product Name *</label>
+          <input type="text" id="form-product" required placeholder="e.g. 5 Kidg"
+                 class="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm
+                        focus:ring-2 focus:ring-brand-500 outline-none" />
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">Quantity</label>
+          <input type="number" id="form-qty" min="1" value="1" placeholder="1"
+                 class="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm
+                        focus:ring-2 focus:ring-brand-500 outline-none" />
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">PV</label>
+          <input type="number" id="form-pv" step="0.01" min="0" placeholder="0"
+                 class="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm
+                        focus:ring-2 focus:ring-brand-500 outline-none" />
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">Amount (₹)</label>
+          <input type="number" id="form-amount" step="0.01" min="0" placeholder="0"
+                 class="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm
+                        focus:ring-2 focus:ring-brand-500 outline-none" />
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">Penal PV</label>
+          <input type="number" id="form-penal-pv" step="0.01" min="0" placeholder="0"
+                 class="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm
+                        focus:ring-2 focus:ring-brand-500 outline-none" />
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">Penal Amount (₹)</label>
+          <input type="number" id="form-penal-amount" step="0.01" min="0" placeholder="0"
+                 class="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm
+                        focus:ring-2 focus:ring-brand-500 outline-none" />
+        </div>
+      </div>
+
+      <div class="flex gap-3 pt-2">
+        <button type="button" onclick="closeModal()"
+                class="flex-1 px-4 py-2.5 border border-slate-200 rounded-lg text-sm
+                       font-semibold text-slate-700 hover:bg-slate-50 transition">
+          Cancel
+        </button>
+        <button type="submit" id="modal-submit-btn"
+                class="flex-1 flex items-center justify-center gap-2 px-4 py-2.5
+                       bg-brand-600 text-white rounded-lg text-sm font-semibold
+                       hover:bg-brand-700 transition">
+          Save Transaction
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- DELETE CONFIRM MODAL -->
+<div id="delete-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 modal-overlay">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-auto p-6 text-center">
+    <div class="w-14 h-14 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+      <svg class="w-7 h-7 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5
+                 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+      </svg>
+    </div>
+    <h3 class="font-bold text-slate-900 text-lg mb-2">Delete Transaction?</h3>
+    <p class="text-sm text-slate-500 mb-6">This action cannot be undone.</p>
+    <div class="flex gap-3">
+      <button onclick="closeDeleteModal()"
+              class="flex-1 px-4 py-2.5 border border-slate-200 rounded-lg text-sm
+                     font-semibold text-slate-700 hover:bg-slate-50 transition">Cancel</button>
+      <button id="confirm-delete-btn"
+              class="flex-1 px-4 py-2.5 bg-red-500 text-white rounded-lg text-sm
+                     font-semibold hover:bg-red-600 transition">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST NOTIFICATION -->
+<div id="toast"
+     class="hidden fixed bottom-6 right-6 z-50 px-5 py-3 rounded-xl shadow-xl
+            text-sm font-semibold text-white flex items-center gap-3 max-w-xs">
+  <svg id="toast-icon" class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"></svg>
+  <span id="toast-msg"></span>
+</div>
+
+<script>
+let allMembers       = [];
+let allTransactions  = [];
+let filteredTxns     = [];
+let currentView      = 'all';
+let currentMember    = null;
+let toastTimer       = null;
+let deleteTargetId   = null;
+let pvBarChart       = null;
+let paidPendingChart = null;
+
+const PAGE_SIZE = 15;
+let currentPage  = 1;
+
+document.addEventListener('DOMContentLoaded', async () => {
+  await loadMembers();
+  await switchView('all');
+  initCharts();
+  loadChartData();
+
+  let searchTimer;
+  document.getElementById('global-search').addEventListener('input', e => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => {
+      filterTable(e.target.value);
+    }, 250);
+  });
+});
+
+function toggleMobileSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  const backdrop = document.getElementById('sidebar-backdrop');
+  sidebar.classList.toggle('-translate-x-full');
+  backdrop.classList.toggle('hidden');
+}
+
+async function syncExcel() {
+  try {
+    showToast('Syncing with VEDVEDA.xlsx...', 'success');
+    const res = await fetch('/api/sync-excel', { method: 'POST' });
+    const data = await res.json();
+    if (data.success) {
+      showToast('Dashboard updated from Excel successfully!', 'success');
+      await refreshAfterChange();
+      loadChartData();
+    } else {
+      throw new Error(data.error || 'Sync failed');
+    }
+  } catch (err) {
+    showToast('Sync error: ' + err.message, 'error');
+  }
+}
+
+function openMemberModal() {
+  document.getElementById('member-form').reset();
+  document.getElementById('member-modal').classList.remove('hidden');
+}
+
+function closeMemberModal() {
+  document.getElementById('member-modal').classList.add('hidden');
+}
+
+async function submitMember(e) {
+  e.preventDefault();
+  const name = document.getElementById('form-member-name').value.trim();
+  const role = document.getElementById('form-member-role').value.trim() || 'Team Member';
+
+  const btn = document.getElementById('member-submit-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner mx-auto"></div>';
+
+  try {
+    const res = await fetch('/api/members', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, role })
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Failed to add member');
+    }
+    closeMemberModal();
+    showToast(`Member ${name} added successfully!`, 'success');
+    await refreshAfterChange();
+    loadChartData();
+  } catch (err) {
+    showToast(err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Add Member';
+  }
+}
+
+async function loadMembers() {
+  try {
+    const res = await fetch('/api/members');
+    allMembers = await res.json();
+    buildMemberNav();
+    populateMemberSelect();
+    document.getElementById('kpi-members').textContent = allMembers.length;
+  } catch (err) {
+    showToast('Failed to load members.', 'error');
+  }
+}
+
+function buildMemberNav() {
+  const colors = ['bg-sky-500','bg-emerald-500','bg-violet-500','bg-amber-500','bg-rose-500', 'bg-indigo-500', 'bg-teal-500'];
+  const nav = document.getElementById('member-nav-links');
+  nav.innerHTML = allMembers.map((m, i) => `
+    <a href="#" onclick="switchView(${m.id}); if(window.innerWidth < 768) toggleMobileSidebar(); return false;"
+       id="nav-${m.id}"
+       class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm
+              font-medium text-slate-300 hover:text-white hover:bg-slate-700 transition-all duration-200">
+      <span class="w-6 h-6 rounded-full ${colors[i % colors.length]} flex items-center
+                   justify-center text-xs text-white font-bold flex-shrink-0">
+        ${m.name.charAt(0)}
+      </span>
+      ${m.name}
+    </a>
+  `).join('');
+}
+
+function populateMemberSelect() {
+  const sel = document.getElementById('form-member');
+  sel.innerHTML = '<option value="">Select member…</option>' +
+    allMembers.map(m => `<option value="${m.id}">${m.name}</option>`).join('');
+}
+
+async function switchView(view) {
+  currentView = view;
+  currentPage = 1;
+
+  document.querySelectorAll('.nav-link').forEach(el => el.classList.remove('active'));
+  if (view === 'all') {
+    document.getElementById('nav-all').classList.add('active');
+  } else {
+    const navEl = document.getElementById(`nav-${view}`);
+    if (navEl) navEl.classList.add('active');
+  }
+
+  if (view === 'all') {
+    document.getElementById('page-title').textContent = 'All Team Overview';
+    document.getElementById('table-title').textContent = 'All Transactions';
+    document.getElementById('all-team-section').classList.remove('hidden');
+    document.getElementById('member-detail-section').classList.add('hidden');
+    await loadAllTeamView();
+  } else {
+    await loadMemberView(view);
+    document.getElementById('all-team-section').classList.add('hidden');
+    document.getElementById('member-detail-section').classList.remove('hidden');
+  }
+}
+
+async function loadAllTeamView() {
+  await refreshGlobalKPIs();
+  renderMemberCards();
+  await loadTransactions(null);
+}
+
+async function refreshGlobalKPIs() {
+  const res = await fetch('/api/stats/overview');
+  const data = await res.json();
+  const paid    = data.paid_vs_pending.paid;
+  const pending = data.paid_vs_pending.pending;
+  const totalPV = data.pv_per_member.reduce((s, m) => s + m.pv, 0);
+  document.getElementById('kpi-total-pv').textContent = fmt(totalPV, false);
+  document.getElementById('kpi-revenue').textContent  = '₹' + fmt(paid);
+  document.getElementById('kpi-pending').textContent  = '₹' + fmt(pending);
+}
+
+function renderMemberCards() {
+  const colors = [
+    { bg:'bg-sky-50',     border:'border-sky-200',     dot:'bg-sky-500',     text:'text-sky-700' },
+    { bg:'bg-emerald-50', border:'border-emerald-200', dot:'bg-emerald-500', text:'text-emerald-700' },
+    { bg:'bg-violet-50',  border:'border-violet-200',  dot:'bg-violet-500',  text:'text-violet-700' },
+    { bg:'bg-amber-50',   border:'border-amber-200',   dot:'bg-amber-500',   text:'text-amber-700' },
+    { bg:'bg-rose-50',    border:'border-rose-200',    dot:'bg-rose-500',    text:'text-rose-700' },
+    { bg:'bg-indigo-50',  border:'border-indigo-200',  dot:'bg-indigo-500',  text:'text-indigo-700' },
+    { bg:'bg-teal-50',    border:'border-teal-200',    dot:'bg-teal-500',    text:'text-teal-700' },
+  ];
+  const grid = document.getElementById('member-cards-grid');
+  grid.innerHTML = allMembers.map((m, i) => {
+    const c = colors[i % colors.length];
+    const paidPct = m.total_amount > 0
+      ? Math.round(m.paid_amount / m.total_amount * 100)
+      : 0;
+    return `
+    <div class="${c.bg} ${c.border} border rounded-2xl p-5 cursor-pointer hover:shadow-md transition"
+         onclick="switchView(${m.id})">
+      <div class="flex items-center gap-3 mb-4">
+        <div class="w-11 h-11 ${c.dot} rounded-full flex items-center justify-center text-white font-bold text-lg">
+          ${m.name.charAt(0)}
+        </div>
+        <div>
+          <p class="font-bold text-slate-900">${m.name}</p>
+          <p class="text-xs text-slate-500">${m.role}</p>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-3 text-sm">
+        <div>
+          <p class="text-slate-500 text-xs">Total PV</p>
+          <p class="font-bold ${c.text}">${fmt(m.total_pv, false)}</p>
+        </div>
+        <div>
+          <p class="text-slate-500 text-xs">Revenue</p>
+          <p class="font-bold text-slate-800">₹${fmt(m.paid_amount)}</p>
+        </div>
+        <div>
+          <p class="text-slate-500 text-xs">Pending</p>
+          <p class="font-bold text-amber-600">₹${fmt(m.pending_amount)}</p>
+        </div>
+        <div>
+          <p class="text-slate-500 text-xs">Txns</p>
+          <p class="font-bold text-slate-800">${m.transaction_count}</p>
+        </div>
+      </div>
+      <div class="mt-4">
+        <div class="flex justify-between text-xs text-slate-500 mb-1">
+          <span>Payment Progress</span><span>${paidPct}%</span>
+        </div>
+        <div class="w-full bg-slate-200 rounded-full h-1.5">
+          <div class="${c.dot} h-1.5 rounded-full transition-all" style="width:${paidPct}%"></div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function loadMemberView(memberId) {
+  try {
+    const res = await fetch(`/api/member/${memberId}`);
+    const data = await res.json();
+    currentMember = data.member;
+
+    document.getElementById('page-title').textContent = `${currentMember.name}'s Dashboard`;
+    document.getElementById('table-title').textContent = `${currentMember.name} — Transactions`;
+
+    renderMemberProfileHeader(currentMember);
+    renderMemberStats(currentMember);
+    renderProductBreakdown(data.product_breakdown);
+    await loadTransactions(memberId);
+
+    document.getElementById('kpi-total-pv').textContent   = fmt(currentMember.total_pv, false);
+    document.getElementById('kpi-revenue').textContent    = '₹' + fmt(currentMember.paid_amount);
+    document.getElementById('kpi-pending').textContent    = '₹' + fmt(currentMember.pending_amount);
+    document.getElementById('kpi-members').textContent    = currentMember.transaction_count;
+  } catch (err) {
+    showToast('Failed to load member data.', 'error');
+  }
+}
+
+function renderMemberProfileHeader(m) {
+  const colors = { Pooja:'bg-sky-500', Deepika:'bg-emerald-500',
+                   Pankaj:'bg-violet-500', Shailendra:'bg-amber-500', Anita:'bg-rose-500' };
+  const dot = colors[m.name] || 'bg-brand-500';
+  document.getElementById('member-profile-header').innerHTML = `
+    <div class="w-16 h-16 ${dot} rounded-2xl flex items-center justify-center text-white text-2xl font-bold shadow-lg flex-shrink-0">
+      ${m.name.charAt(0)}
+    </div>
+    <div>
+      <h2 class="text-xl font-extrabold text-slate-900">${m.name}</h2>
+      <p class="text-slate-500 text-sm">${m.role}</p>
+      <div class="flex items-center gap-2 mt-1">
+        <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+        <span class="text-xs text-slate-500">${m.transaction_count} transactions recorded</span>
+      </div>
+    </div>
+    <div class="sm:ml-auto text-left sm:text-right w-full sm:w-auto pt-3 sm:pt-0 border-t sm:border-t-0 border-slate-100">
+      <p class="text-xs text-slate-500">Collection Rate</p>
+      <p class="text-2xl font-extrabold text-slate-900">
+        ${m.total_amount > 0 ? Math.round(m.paid_amount / m.total_amount * 100) : 0}%
+      </p>
+    </div>`;
+}
+
+function renderMemberStats(m) {
+  const cards = [
+    { label: 'Total PV',  value: fmt(m.total_pv, false),       color: 'text-brand-600',   bg: 'bg-brand-50' },
+    { label: 'Revenue',   value: '₹' + fmt(m.paid_amount),     color: 'text-emerald-600', bg: 'bg-emerald-50' },
+    { label: 'Pending',   value: '₹' + fmt(m.pending_amount),  color: 'text-amber-600',   bg: 'bg-amber-50' },
+    { label: 'Penal PV',  value: fmt(m.penal_pv, false),       color: 'text-rose-600',    bg: 'bg-rose-50' },
+  ];
+  document.getElementById('member-stats-row').innerHTML = cards.map(c => `
+    <div class="${c.bg} rounded-xl p-4 text-center">
+      <p class="text-xs text-slate-500 font-medium uppercase tracking-wider">${c.label}</p>
+      <p class="text-xl font-extrabold ${c.color} mt-1">${c.value}</p>
+    </div>`).join('');
+}
+
+function renderProductBreakdown(breakdown) {
+  const list = document.getElementById('product-breakdown-list');
+  const entries = Object.entries(breakdown);
+  if (!entries.length) {
+    list.innerHTML = '<p class="text-slate-400 text-sm text-center py-4">No product data.</p>';
+    return;
+  }
+  list.innerHTML = entries.map(([product, stats]) => `
+    <div class="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+      <div>
+        <p class="font-semibold text-slate-800 text-sm">${product}</p>
+        <p class="text-xs text-slate-500">${stats.count} transaction(s)</p>
+      </div>
+      <div class="text-right">
+        <p class="font-bold text-brand-600 text-sm">PV ${fmt(stats.pv, false)}</p>
+        <p class="text-xs text-slate-500">₹${fmt(stats.amount)}</p>
+      </div>
+    </div>`).join('');
+}
+
+async function loadTransactions(memberId) {
+  const url = memberId ? `/api/transactions?member_id=${memberId}` : '/api/transactions';
+  try {
+    const res = await fetch(url);
+    allTransactions = await res.json();
+    filterTable();
+  } catch (err) {
+    showToast('Failed to load transactions.', 'error');
+  }
+}
+
+function filterTable(searchTerm) {
+  const q      = (searchTerm ?? document.getElementById('global-search').value).toLowerCase();
+  const status = document.getElementById('status-filter').value;
+
+  filteredTxns = allTransactions.filter(t => {
+    const matchStatus = status === 'all' || t.payment_status === status;
+    const matchSearch = !q ||
+      (t.product_name  && t.product_name.toLowerCase().includes(q))  ||
+      (t.member_name   && t.member_name.toLowerCase().includes(q))   ||
+      (t.date          && t.date.includes(q));
+    return matchStatus && matchSearch;
+  });
+
+  currentPage = 1;
+  renderTable();
+}
+
+function renderTable() {
+  const start = (currentPage - 1) * PAGE_SIZE;
+  const end   = start + PAGE_SIZE;
+  const page  = filteredTxns.slice(start, end);
+  const tbody = document.getElementById('transactions-tbody');
+
+  if (!page.length) {
+    tbody.innerHTML = `<tr><td colspan="10" class="text-center py-10 text-slate-400 text-sm">No transactions found.</td></tr>`;
+    document.getElementById('pagination-info').textContent = '';
+    document.getElementById('prev-btn').disabled = true;
+    document.getElementById('next-btn').disabled = true;
+    document.getElementById('row-count').textContent = '0 records';
+    return;
+  }
+
+  tbody.innerHTML = page.map(t => `
+    <tr class="cursor-pointer transition-colors" data-id="${t.id}">
+      <td class="px-5 py-3 text-slate-600">${t.date ? fmtDate(t.date) : '—'}</td>
+      <td class="px-5 py-3">
+        <span class="font-medium text-slate-800">${t.member_name || '—'}</span>
+      </td>
+      <td class="px-5 py-3 text-slate-700 max-w-[180px] truncate" title="${t.product_name}">${t.product_name}</td>
+      <td class="px-5 py-3 text-right text-slate-600">${t.quantity ?? '—'}</td>
+      <td class="px-5 py-3 text-right font-semibold text-brand-600">${fmt(t.pv, false)}</td>
+      <td class="px-5 py-3 text-right font-semibold text-slate-800">₹${fmt(t.amount)}</td>
+      <td class="px-5 py-3 text-center">
+        <span class="px-2.5 py-1 rounded-full text-xs font-semibold
+                     ${t.payment_status === 'Paid' ? 'badge-paid' : 'badge-pending'}">
+          ${t.payment_status}
+        </span>
+      </td>
+      <td class="px-5 py-3 text-right text-rose-500">${fmt(t.penal_pv, false)}</td>
+      <td class="px-5 py-3 text-right text-rose-500">₹${fmt(t.penal_amount)}</td>
+      <td class="px-5 py-3 text-center">
+        <div class="flex items-center justify-center gap-2">
+          <button onclick="openEditModal(${t.id})"
+                  class="p-1.5 rounded-lg bg-brand-50 text-brand-600 hover:bg-brand-100 transition"
+                  title="Edit">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2
+                       2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+            </svg>
+          </button>
+          <button onclick="openDeleteModal(${t.id})"
+                  class="p-1.5 rounded-lg bg-red-50 text-red-500 hover:bg-red-100 transition"
+                  title="Delete">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5
+                       7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+            </svg>
+          </button>
+        </div>
+      </td>
+    </tr>`).join('');
+
+  const total = filteredTxns.length;
+  const pages = Math.ceil(total / PAGE_SIZE);
+  document.getElementById('pagination-info').textContent =
+    `Showing ${start + 1}–${Math.min(end, total)} of ${total} records`;
+  document.getElementById('row-count').textContent = `${total} record${total !== 1 ? 's' : ''}`;
+  document.getElementById('prev-btn').disabled = currentPage <= 1;
+  document.getElementById('next-btn').disabled = currentPage >= pages;
+}
+
+function changePage(delta) {
+  const total = filteredTxns.length;
+  const pages = Math.ceil(total / PAGE_SIZE);
+  currentPage = Math.max(1, Math.min(pages, currentPage + delta));
+  renderTable();
+}
+
+function initCharts() {
+  const barCtx = document.getElementById('pvBarChart').getContext('2d');
+  pvBarChart = new Chart(barCtx, {
+    type: 'bar',
+    data: { labels: [], datasets: [{ label: 'PV', data: [],
+      backgroundColor: ['#0ea5e9','#10b981','#8b5cf6','#f59e0b','#f43f5e'],
+      borderRadius: 8, borderSkipped: false }] },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => `PV: ${ctx.raw}` } },
+      },
+      scales: {
+        y: { beginAtZero: true, grid: { color: '#f1f5f9' },
+             ticks: { color: '#94a3b8', font: { size: 11 } } },
+        x: { grid: { display: false },
+             ticks: { color: '#64748b', font: { weight: 600 } } },
+      },
+    },
+  });
+
+  const dCtx = document.getElementById('paidPendingChart').getContext('2d');
+  paidPendingChart = new Chart(dCtx, {
+    type: 'doughnut',
+    data: {
+      labels: ['Paid', 'Pending'],
+      datasets: [{ data: [0, 0],
+        backgroundColor: ['#10b981', '#f59e0b'],
+        borderWidth: 3, borderColor: '#ffffff',
+        hoverOffset: 8 }],
+    },
+    options: {
+      cutout: '70%',
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: {
+          label: ctx => `₹${fmt(ctx.raw)} (${ctx.label})`,
+        }},
+      },
+    },
+  });
+}
+
+async function loadChartData() {
+  try {
+    const res  = await fetch('/api/stats/overview');
+    const data = await res.json();
+
+    pvBarChart.data.labels   = data.pv_per_member.map(m => m.member);
+    pvBarChart.data.datasets[0].data = data.pv_per_member.map(m => m.pv);
+    pvBarChart.update();
+
+    const paid    = data.paid_vs_pending.paid;
+    const pending = data.paid_vs_pending.pending;
+    paidPendingChart.data.datasets[0].data = [paid, pending];
+    paidPendingChart.update();
+
+    document.getElementById('donut-legend').innerHTML = `
+      <div class="flex items-center gap-1.5">
+        <span class="w-3 h-3 rounded-full bg-emerald-500 inline-block"></span>
+        <span class="text-slate-600">Paid ₹${fmt(paid)}</span>
+      </div>
+      <div class="flex items-center gap-1.5">
+        <span class="w-3 h-3 rounded-full bg-amber-400 inline-block"></span>
+        <span class="text-slate-600">Pending ₹${fmt(pending)}</span>
+      </div>`;
+  } catch (err) {
+    console.error('Chart load error:', err);
+  }
+}
+
+function openAddModal() {
+  document.getElementById('txn-id').value = '';
+  document.getElementById('modal-title').textContent = 'Add Transaction';
+  document.getElementById('modal-submit-btn').textContent = 'Save Transaction';
+  document.getElementById('txn-form').reset();
+
+  if (currentView !== 'all') {
+    document.getElementById('form-member').value = currentView;
+  }
+
+  document.getElementById('txn-modal').classList.remove('hidden');
+}
+
+function openEditModal(txnId) {
+  const txn = allTransactions.find(t => t.id === txnId);
+  if (!txn) return;
+
+  document.getElementById('txn-id').value          = txn.id;
+  document.getElementById('modal-title').textContent = 'Edit Transaction';
+  document.getElementById('modal-submit-btn').textContent = 'Update Transaction';
+  document.getElementById('form-member').value      = txn.member_id;
+  document.getElementById('form-date').value        = txn.date || '';
+  document.getElementById('form-product').value     = txn.product_name;
+  document.getElementById('form-qty').value         = txn.quantity || 1;
+  document.getElementById('form-pv').value          = txn.pv || '';
+  document.getElementById('form-amount').value      = txn.amount || '';
+  document.getElementById('form-status').value      = txn.payment_status;
+  document.getElementById('form-penal-pv').value    = txn.penal_pv || '';
+  document.getElementById('form-penal-amount').value= txn.penal_amount || '';
+
+  document.getElementById('txn-modal').classList.remove('hidden');
+}
+
+function closeModal() {
+  document.getElementById('txn-modal').classList.add('hidden');
+}
+
+async function submitTransaction(e) {
+  e.preventDefault();
+  const txnId = document.getElementById('txn-id').value;
+  const isEdit = !!txnId;
+
+  const payload = {
+    member_id:      parseInt(document.getElementById('form-member').value),
+    date:           document.getElementById('form-date').value || null,
+    product_name:   document.getElementById('form-product').value,
+    quantity:       parseInt(document.getElementById('form-qty').value) || 1,
+    pv:             parseFloat(document.getElementById('form-pv').value) || 0,
+    amount:         parseFloat(document.getElementById('form-amount').value) || 0,
+    payment_status: document.getElementById('form-status').value,
+    penal_pv:       parseFloat(document.getElementById('form-penal-pv').value) || 0,
+    penal_amount:   parseFloat(document.getElementById('form-penal-amount').value) || 0,
+  };
+
+  const btn = document.getElementById('modal-submit-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner mx-auto"></div>';
+
+  try {
+    const url    = isEdit ? `/api/transactions/${txnId}` : '/api/transactions';
+    const method = isEdit ? 'PUT' : 'POST';
+    const res    = await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Request failed');
+    }
+    closeModal();
+    showToast(isEdit ? 'Transaction updated!' : 'Transaction added!', 'success');
+    await refreshAfterChange();
+  } catch (err) {
+    showToast(err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = isEdit ? 'Update Transaction' : 'Save Transaction';
+  }
+}
+
+function openDeleteModal(txnId) {
+  deleteTargetId = txnId;
+  document.getElementById('delete-modal').classList.remove('hidden');
+  document.getElementById('confirm-delete-btn').onclick = confirmDelete;
+}
+
+function closeDeleteModal() {
+  deleteTargetId = null;
+  document.getElementById('delete-modal').classList.add('hidden');
+}
+
+async function confirmDelete() {
+  if (!deleteTargetId) return;
+  try {
+    const res = await fetch(`/api/transactions/${deleteTargetId}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error('Delete failed');
+    closeDeleteModal();
+    showToast('Transaction deleted.', 'success');
+    await refreshAfterChange();
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
+
+async function refreshAfterChange() {
+  await loadMembers();
+  if (currentView === 'all') {
+    await loadAllTeamView();
+  } else {
+    await loadMemberView(currentView);
+  }
+  loadChartData();
+}
+
+function showToast(msg, type = 'success') {
+  const toast    = document.getElementById('toast');
+  const toastMsg = document.getElementById('toast-msg');
+  const icon     = document.getElementById('toast-icon');
+
+  toastMsg.textContent = msg;
+  toast.classList.remove('hidden', 'bg-emerald-500', 'bg-red-500', 'bg-brand-600');
+  toast.classList.add(type === 'success' ? 'bg-emerald-500' : 'bg-red-500');
+
+  icon.innerHTML = type === 'success'
+    ? '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>'
+    : '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>';
+
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.add('hidden'), 3500);
+}
+
+function fmt(val, decimals = true) {
+  if (val == null || val === '') return '0';
+  const n = parseFloat(val);
+  if (isNaN(n)) return '0';
+  return decimals
+    ? n.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })
+    : n.toLocaleString('en-IN', { maximumFractionDigits: 2 });
+}
+
+function fmtDate(dateStr) {
+  if (!dateStr) return '—';
+  const d = new Date(dateStr);
+  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+document.getElementById('txn-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+document.getElementById('delete-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeDeleteModal();
+});
+document.getElementById('member-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeMemberModal();
+});
+</script>
+</body>
+</html>`
